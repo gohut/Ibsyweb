@@ -53,6 +53,8 @@ function Lightbox({
   const prev = () => setIndex((i) => (i - 1 + items.length) % items.length);
   const next = () => setIndex((i) => (i + 1) % items.length);
 
+  if (!item) return null;
+
   return (
     <div
       style={{
@@ -251,16 +253,32 @@ function navBtnStyle(side: "left" | "right"): React.CSSProperties {
   };
 }
 
+// ─── Placeholder when no media ────────────────────────────────────────────────
+function NoMediaPlaceholder() {
+  return (
+    <div
+      style={{
+        width: "100%",
+        aspectRatio: "4/3",
+        background: "var(--color-surface-secondary, #1e1e2e)",
+        borderRadius: 8,
+        display: "grid",
+        placeItems: "center",
+        color: "var(--color-text-muted, #888)",
+        fontSize: 14,
+      }}
+    >
+      No media available
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export function MediaSlider({ items }: MediaSliderProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const activeItem = items[activeIndex];
 
-  // touch swipe on main stage
-  const touchStartX = useRef<number | null>(null);
-
-  // keep thumb-strip scroll in sync with activeIndex
+  // thumb-strip scroll sync
   const thumbRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = thumbRef.current;
@@ -268,6 +286,22 @@ export function MediaSlider({ items }: MediaSliderProps) {
     const btn = el.children[activeIndex] as HTMLElement | undefined;
     btn?.scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" });
   }, [activeIndex]);
+
+  // touch swipe on main stage
+  const touchStartX = useRef<number | null>(null);
+
+  // Guard: no media at all
+  if (!items || items.length === 0) {
+    return <NoMediaPlaceholder />;
+  }
+
+  const activeItem = items[activeIndex];
+
+  // Safety: if activeIndex somehow out of range, reset to 0
+  if (!activeItem) {
+    setActiveIndex(0);
+    return null;
+  }
 
   return (
     <>
@@ -277,7 +311,6 @@ export function MediaSlider({ items }: MediaSliderProps) {
           className="media-stage"
           style={{
             cursor: "zoom-in",
-            // escape any parent horizontal padding to go truly full-bleed
             marginLeft: "calc(-1 * var(--page-padding-x, 0px))",
             marginRight: "calc(-1 * var(--page-padding-x, 0px))",
             borderRadius: 0,
@@ -311,68 +344,70 @@ export function MediaSlider({ items }: MediaSliderProps) {
           )}
         </div>
 
-        {/* ── Thumb Strip ── */}
-        <div
-          ref={thumbRef}
-          className="thumb-strip"
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            gap: 6,
-            overflowX: "auto",
-            overflowY: "hidden",
-            padding: "8px var(--page-padding-x, 12px)",
-            scrollbarWidth: "none",
-            WebkitOverflowScrolling: "touch",
-          }}
-        >
-          {items.map((item, index) => (
-            <button
-              key={`${item.kind}-${index}`}
-              type="button"
-              className={`thumb-button${index === activeIndex ? " active" : ""}`}
-              onClick={() => setActiveIndex(index)}
-              style={{
-                flexShrink: 0,
-                width: 64,
-                height: 64,
-                borderRadius: 4,
-                overflow: "hidden",
-                padding: 0,
-                border: index === activeIndex
-                  ? "2px solid var(--color-accent-primary, #333)"
-                  : "2px solid transparent",
-                background: "var(--color-surface-secondary, #f0f0f0)",
-                cursor: "pointer",
-                position: "relative",
-              }}
-            >
-              {item.kind === "image" ? (
-                <Image
-                  src={item.src}
-                  alt={item.label}
-                  width={64}
-                  height={64}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  unoptimized
-                />
-              ) : (
-                <div
-                  style={{
-                    height: "100%",
-                    display: "grid",
-                    placeItems: "center",
-                    gap: "0.3rem",
-                    color: "var(--color-accent-secondary)",
-                  }}
-                >
-                  <PlayIcon />
-                  <Badge>Video</Badge>
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
+        {/* ── Thumb Strip (only if more than 1 item) ── */}
+        {items.length > 1 && (
+          <div
+            ref={thumbRef}
+            className="thumb-strip"
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              gap: 6,
+              overflowX: "auto",
+              overflowY: "hidden",
+              padding: "8px var(--page-padding-x, 12px)",
+              scrollbarWidth: "none",
+              WebkitOverflowScrolling: "touch",
+            }}
+          >
+            {items.map((item, index) => (
+              <button
+                key={`${item.kind}-${index}`}
+                type="button"
+                className={`thumb-button${index === activeIndex ? " active" : ""}`}
+                onClick={() => setActiveIndex(index)}
+                style={{
+                  flexShrink: 0,
+                  width: 64,
+                  height: 64,
+                  borderRadius: 4,
+                  overflow: "hidden",
+                  padding: 0,
+                  border: index === activeIndex
+                    ? "2px solid var(--color-accent-primary, #333)"
+                    : "2px solid transparent",
+                  background: "var(--color-surface-secondary, #f0f0f0)",
+                  cursor: "pointer",
+                  position: "relative",
+                }}
+              >
+                {item.kind === "image" ? (
+                  <Image
+                    src={item.src}
+                    alt={item.label}
+                    width={64}
+                    height={64}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    unoptimized
+                  />
+                ) : (
+                  <div
+                    style={{
+                      height: "100%",
+                      display: "grid",
+                      placeItems: "center",
+                      gap: "0.3rem",
+                      color: "var(--color-accent-secondary)",
+                    }}
+                  >
+                    <PlayIcon />
+                    <Badge>Video</Badge>
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Lightbox ── */}

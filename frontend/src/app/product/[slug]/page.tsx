@@ -69,6 +69,10 @@ export default async function ProductPage({
     .neq("id", dbProduct.id)
     .limit(4);
 
+  // Safely coerce array fields — Supabase may return null for jsonb columns
+  const images: string[] = Array.isArray(dbProduct.images) ? dbProduct.images as string[] : [];
+  const youtubeUrls: string[] = Array.isArray(dbProduct.youtube_urls) ? dbProduct.youtube_urls as string[] : [];
+
   // Map to the shape expected by components
   const product = {
     id: dbProduct.id,
@@ -77,8 +81,8 @@ export default async function ProductPage({
     category: dbProduct.category,
     shortBlurb: dbProduct.short_blurb,
     descriptionHtml: dbProduct.description_html,
-    images: dbProduct.images || [],
-    youtubeUrls: dbProduct.youtube_urls || [],
+    images,
+    youtubeUrls,
     originalPriceInr: dbProduct.original_price_inr,
     priceInr: dbProduct.price_inr,
     originalPriceUsd: dbProduct.original_price_usd,
@@ -104,8 +108,8 @@ export default async function ProductPage({
     category: p.category,
     shortBlurb: p.short_blurb,
     descriptionHtml: p.description_html,
-    images: p.images || [],
-    youtubeUrls: p.youtube_urls || [],
+    images: Array.isArray(p.images) ? p.images as string[] : [],
+    youtubeUrls: Array.isArray(p.youtube_urls) ? p.youtube_urls as string[] : [],
     originalPriceInr: p.original_price_inr,
     priceInr: p.price_inr,
     originalPriceUsd: p.original_price_usd,
@@ -118,12 +122,12 @@ export default async function ProductPage({
   }));
 
   const mediaItems = [
-    ...product.images.map((image: string, index: number) => ({
+    ...images.map((image, index) => ({
       kind: "image" as const,
       src: image,
       label: `${product.name} image ${index + 1}`,
     })),
-    ...product.youtubeUrls.map((url: string, index: number) => ({
+    ...youtubeUrls.map((url, index) => ({
       kind: "video" as const,
       src: url,
       label: `${product.name} video ${index + 1}`,
