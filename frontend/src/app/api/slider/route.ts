@@ -1,7 +1,46 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase";
+import type { Database } from "@/types/supabase";
 
 export const runtime = "nodejs";
+
+type SliderInsert = Database["public"]["Tables"]["slider_images"]["Insert"];
+type SliderUpdate = Database["public"]["Tables"]["slider_images"]["Update"];
+type SliderRow = Database["public"]["Tables"]["slider_images"]["Row"];
+
+type SliderClient = {
+  from: (table: string) => {
+    insert: (values: SliderInsert[]) => {
+      select: () => {
+        single: () => Promise<{
+          data: SliderRow | null;
+          error: { message: string } | null;
+        }>;
+      };
+    };
+    update: (values: SliderUpdate) => {
+      eq: (col: string, val: string) => {
+        select: () => {
+          single: () => Promise<{
+            data: SliderRow | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
+    };
+    select: (cols?: string) => {
+      order: (col: string, opts: { ascending: boolean }) => Promise<{
+        data: SliderRow[] | null;
+        error: { message: string } | null;
+      }>;
+    };
+    delete: () => {
+      eq: (col: string, val: string) => Promise<{
+        error: { message: string } | null;
+      }>;
+    };
+  };
+};
 
 export async function GET() {
   const supabase = createSupabaseServerClient();
@@ -19,10 +58,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = createSupabaseServerClient();
   const body = await request.json();
+  const supabase = createSupabaseServerClient() as unknown as SliderClient;
 
-  // image_url is now always a plain URL string (or null) — no base64, no upload
   const { data, error } = await supabase
     .from("slider_images")
     .insert([
@@ -46,14 +84,14 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const supabase = createSupabaseServerClient();
   const body = await request.json();
 
   if (!body.id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  // image_url is now always a plain URL string (or null) — no base64, no upload
+  const supabase = createSupabaseServerClient() as unknown as SliderClient;
+
   const { data, error } = await supabase
     .from("slider_images")
     .update({

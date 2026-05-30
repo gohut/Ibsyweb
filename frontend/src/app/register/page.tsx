@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import type { Database } from "@/types/supabase";
+
+type UsersInsert = Database["public"]["Tables"]["users"]["Insert"];
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -27,7 +30,7 @@ export default function RegisterPage() {
     setError(null);
 
     const supabase = createSupabaseBrowserClient();
-    
+
     // Call Supabase Auth signUp
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
@@ -41,17 +44,27 @@ export default function RegisterPage() {
     }
 
     if (data.user) {
-      // Insert into public.users
-      const { error: insertError } = await supabase.from("users").insert([
-        {
-          id: data.user.id,
-          role: "customer",
-          email: data.user.email,
-        }
-      ]);
+      // Insert into public.users — cast to bypass the never inference bug
+      // in supabase-js with interface-based Database schemas.
+      // Note: email lives in auth.users, not public.users, so it is omitted.
+      const payload: UsersInsert = {
+        id: data.user.id,
+        role: "customer",
+      };
+
+      const usersTable = supabase as unknown as {
+        from: (table: string) => {
+          insert: (values: UsersInsert[]) => Promise<{
+            error: { message: string } | null;
+          }>;
+        };
+      };
+
+      const { error: insertError } = await usersTable
+        .from("users")
+        .insert([payload]);
 
       if (insertError) {
-        // Technically if user is created but insert fails, you'd handle it here
         console.error("Error creating user profile", insertError);
       }
     }
@@ -80,25 +93,25 @@ export default function RegisterPage() {
               <p className="muted">Join {website.siteName} today.</p>
             </div>
           </div>
-          
+
           {error && (
             <div style={{ padding: "0.75rem", background: "#fee2e2", color: "#991b1b", borderRadius: "0.375rem", fontSize: "0.875rem" }}>
               {error}
             </div>
           )}
 
-          <Input 
-            label="Email" 
-            type="email" 
-            placeholder="you@example.com" 
+          <Input
+            label="Email"
+            type="email"
+            placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-          <Input 
-            label="Password" 
-            type="password" 
-            placeholder="Create a password" 
+          <Input
+            label="Password"
+            type="password"
+            placeholder="Create a password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

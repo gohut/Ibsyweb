@@ -4,6 +4,9 @@ import type { Database } from "@/types/supabase";
 
 export const runtime = "nodejs";
 
+type ProductUpdate = Database["public"]["Tables"]["products"]["Update"];
+type ProductRow = Database["public"]["Tables"]["products"]["Row"];
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = createSupabaseServerClient();
@@ -22,8 +25,24 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = createSupabaseServerClient();
-  const body = (await request.json()) as Database["public"]["Tables"]["products"]["Update"];
+  const body = (await request.json()) as ProductUpdate;
+
+  // createClient without the Database generic to avoid the `never` inference
+  // bug in some versions of @supabase/supabase-js with interface-based schemas.
+  const supabase = createSupabaseServerClient() as unknown as {
+    from: (table: string) => {
+      update: (values: ProductUpdate) => {
+        eq: (col: string, val: string) => {
+          select: () => {
+            single: () => Promise<{
+              data: ProductRow | null;
+              error: { message: string } | null;
+            }>;
+          };
+        };
+      };
+    };
+  };
 
   const { data, error } = await supabase
     .from("products")

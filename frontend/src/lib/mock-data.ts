@@ -70,7 +70,8 @@ export type Product = {
   avgRating: number;
   reviewCount: number;
   status: "active" | "hidden";
-  reviews: Review[];
+  zip_file_path?: string | null;
+  reviews?: Review[];
 };
 
 export type Order = {

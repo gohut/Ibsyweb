@@ -1,9 +1,30 @@
 import { fallbackSettings, mergeSettings, type AppSettings } from "@/lib/settings";
 import { createSupabaseServerClient } from "@/lib/supabase";
+import type { Database } from "@/types/supabase";
+
+type SiteSettingsRow = Database["public"]["Tables"]["site_settings"]["Row"];
+type SiteSettingsUpdate = Database["public"]["Tables"]["site_settings"]["Update"];
+type SliderRow = Database["public"]["Tables"]["slider_images"]["Row"];
+
+type SettingsClient = {
+  from(table: "site_settings"): {
+    select(cols: string): {
+      single(): Promise<{ data: SiteSettingsRow | null; error: { message: string } | null }>;
+    };
+    update(values: SiteSettingsUpdate): {
+      eq(col: string, val: string): Promise<{ error: { message: string } | null }>;
+    };
+  };
+  from(table: "slider_images"): {
+    select(cols: string): {
+      order(col: string): Promise<{ data: SliderRow[] | null; error: { message: string } | null }>;
+    };
+  };
+};
 
 export async function readAppSettings(): Promise<AppSettings> {
   try {
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseServerClient() as unknown as SettingsClient;
 
     const [{ data: s, error: sErr }, { data: slides, error: slidesErr }] =
       await Promise.all([
@@ -53,7 +74,7 @@ export async function readAppSettings(): Promise<AppSettings> {
 
 export async function writeAppSettings(settings: AppSettings) {
   const safeSettings = mergeSettings(settings);
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseServerClient() as unknown as SettingsClient;
 
   const { data: existing } = await supabase
     .from("site_settings")

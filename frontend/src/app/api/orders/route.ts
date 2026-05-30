@@ -5,8 +5,11 @@ import type { Database } from "@/types/supabase";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase
+  const supabase = createSupabaseServerClient() as ReturnType<typeof createSupabaseServerClient> & {
+    from: (table: string) => any;
+  };
+
+  const { data, error } = await (supabase as any)
     .from("orders")
     .select("*")
     .order("created_at", { ascending: false });
@@ -22,7 +25,7 @@ export async function POST(request: Request) {
   const supabase = createSupabaseServerClient();
   const body = (await request.json()) as Database["public"]["Tables"]["orders"]["Insert"];
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("orders")
     .insert([body])
     .select()

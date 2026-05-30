@@ -4,11 +4,26 @@ import { ProductGrid } from "@/components/product/ProductGrid";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { createSupabaseServerClient } from "@/lib/supabase";
 import { readAppSettings } from "@/lib/settings.server";
+import type { Database } from "@/types/supabase";
 
 export const runtime = "nodejs";
 
+type ProductRow = Database["public"]["Tables"]["products"]["Row"];
+
 export default async function HomePage() {
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseServerClient() as unknown as {
+    from: (table: string) => {
+      select: (cols: string) => {
+        eq: (col: string, val: string) => {
+          order: (col: string, opts: { ascending: boolean }) => Promise<{
+            data: ProductRow[] | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
+    };
+  };
+
   const settings = await readAppSettings();
 
   const { data: dbProducts } = await supabase
@@ -36,7 +51,6 @@ export default async function HomePage() {
     avgRating: p.avg_rating ?? 0,
     reviewCount: p.review_count ?? 0,
     status: p.status ?? "active",
-    zip_file_path: p.zip_file_path ?? null,
   }));
 
   return (

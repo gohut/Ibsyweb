@@ -21,7 +21,7 @@ export async function GET(
     .from("products")
     .select("id, name, zip_file_path")
     .eq("id", productId)
-    .single();
+    .single() as { data: { zip_file_path: string | null } | null, error: unknown };
 
   if (productError || !product) {
     console.error("[download] product not found:", productId);

@@ -7,11 +7,34 @@ import { RatingStars } from "@/components/product/RatingStars";
 import { ReviewList } from "@/components/product/ReviewList";
 import { ProductSecondarySection } from "@/components/product/ProductSecondarySection";
 import { StorefrontShell } from "@/components/layout/StorefrontShell";
-import { Badge } from "@/components/ui/Badge";
-import { DownloadIcon, HeartIcon } from "@/components/ui/Icons";
+import { DownloadIcon } from "@/components/ui/Icons";
 import { createSupabaseServerClient } from "@/lib/supabase";
+import type { Database } from "@/types/supabase";
 
 export const runtime = "nodejs";
+
+type ProductRow = Database["public"]["Tables"]["products"]["Row"];
+type ReviewRow = Database["public"]["Tables"]["reviews"]["Row"];
+
+type DbClient = {
+  from(table: "products"): {
+    select(cols: string): {
+      eq(col: string, val: string): {
+        single(): Promise<{ data: ProductRow | null; error: { message: string } | null }>;
+        neq(col: string, val: string): {
+          limit(n: number): Promise<{ data: ProductRow[] | null; error: { message: string } | null }>;
+        };
+      };
+    };
+  };
+  from(table: "reviews"): {
+    select(cols: string): {
+      eq(col: string, val: string): {
+        order(col: string, opts: { ascending: boolean }): Promise<{ data: ReviewRow[] | null; error: { message: string } | null }>;
+      };
+    };
+  };
+};
 
 export default async function ProductPage({
   params,
@@ -19,8 +42,8 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const supabase = createSupabaseServerClient();
-  
+  const supabase = createSupabaseServerClient() as unknown as DbClient;
+
   const { data: dbProduct, error } = await supabase
     .from("products")
     .select("*")
@@ -47,7 +70,7 @@ export default async function ProductPage({
     .limit(4);
 
   // Map to the shape expected by components
-  const product: any = {
+  const product = {
     id: dbProduct.id,
     name: dbProduct.name,
     slug: dbProduct.slug,
@@ -65,10 +88,16 @@ export default async function ProductPage({
     avgRating: dbProduct.avg_rating,
     reviewCount: dbProduct.review_count,
     status: dbProduct.status,
-    reviews: reviews || []
+    reviews: (reviews || []).map((r) => ({
+      id: r.id,
+      author: r.author,
+      rating: r.rating,
+      date: r.reviewed_at,
+      text: r.review_text,
+    })),
   };
 
-  const relatedProducts = (dbRelatedProducts || []).map(p => ({
+  const relatedProducts = (dbRelatedProducts || []).map((p) => ({
     id: p.id,
     name: p.name,
     slug: p.slug,
@@ -113,22 +142,22 @@ export default async function ProductPage({
               <h1 className="display-heading" style={{ fontSize: "14px" }}>
                 {product.name}
               </h1>
-              <p className="muted" style={{ marginTop: "0.55rem" , fontSize:"14px"}}>
+              <p className="muted" style={{ marginTop: "0.55rem", fontSize: "14px" }}>
                 {product.shortBlurb}
               </p>
             </div>
 
             <div style={{ display: "flex", gap: "6.95rem", flexWrap: "wrap" }}>
-            <div className="rating-row">
-              <RatingStars rating={product.avgRating} />
-              <Link href="#reviews" className="subtle-link">
-                {product.avgRating}({product.reviewCount})
-              </Link>
-            </div>
-            <div style={{display:"flex", gap: "5px", justifyContent:"center", alignItems:"center"}}>
+              <div className="rating-row">
+                <RatingStars rating={product.avgRating} />
+                <Link href="#reviews" className="subtle-link">
+                  {product.avgRating}({product.reviewCount})
+                </Link>
+              </div>
+              <div style={{ display: "flex", gap: "5px", justifyContent: "center", alignItems: "center" }}>
                 <DownloadIcon width="14" height="14" />
                 {product.downloads} Downloads
-             </div>
+              </div>
             </div>
 
             <ProductPricePanel product={product} />
