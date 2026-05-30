@@ -182,7 +182,7 @@ export default function AdminSliderPage() {
                   <Input
                     label="Image URL (Cloudflare R2 public URL)"
                     value={slide.image_url ?? ""}
-                    onChange={(e) => updateSlide(index, { image_url: e.target.value || null })}
+                    onChange={(e) => updateSlide(index, { image_url: e.target.value || undefined })}
                     placeholder="https://pub-xxxx.r2.dev/banner.jpg"
                   />
 
