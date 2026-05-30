@@ -73,17 +73,17 @@ export function HeroSlider({ slides }: HeroSliderProps) {
                     style={{ objectFit: "cover" }}
                     unoptimized
                   />
-                  <div className="hero-slide-content">
+                  {/* <div className="hero-slide-content">
                     {slide.title ? (
                       <h2
                         className="display-heading"
-                        style={{ fontSize: "clamp(1.5rem, 4vw, 2.5rem)" }}
+                        style={{ fontSize: "13px" }}
                       >
                         {slide.title}
                       </h2>
                     ) : null}
                     {slide.subtitle ? <p className="muted">{slide.subtitle}</p> : null}
-                  </div>
+                  </div> */}
                 </Link>
               ) : (
                 <>

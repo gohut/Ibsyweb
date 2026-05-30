@@ -1,17 +1,29 @@
 export type Currency = "INR" | "USD";
 
-export function detectCurrency(timeZone?: string): Currency {
-  const resolvedTimeZone =
-    timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+const INDIA_TIMEZONES = new Set(["Asia/Kolkata", "Asia/Calcutta"]);
 
-  return resolvedTimeZone === "Asia/Kolkata" ? "INR" : "USD";
+// ── Server-safe default (always USD — real detection happens client-side) ──
+export function detectCurrency(timeZone?: string): Currency {
+  if (!timeZone) return "USD";
+  return INDIA_TIMEZONES.has(timeZone) ? "INR" : "USD";
+}
+
+// ── Client-side detection using browser timezone ──────────────────────────
+export function detectCurrencyClient(): Currency {
+  if (typeof window === "undefined") return "USD";
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return INDIA_TIMEZONES.has(tz) ? "INR" : "USD";
+  } catch {
+    return "USD";
+  }
 }
 
 export function formatCurrencyValue(amount: number, currency: Currency) {
   return new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", {
     style: "currency",
     currency,
-    maximumFractionDigits: currency === "INR" ? 0 : 0,
+    maximumFractionDigits: 0,
   }).format(amount);
 }
 
@@ -33,4 +45,14 @@ export function formatOriginalProductPrice(
     currency === "INR" ? product.originalPriceInr : product.originalPriceUsd,
     currency,
   );
+}
+
+export function getProductDiscountPercentage(
+  product: { originalPriceInr: number; priceInr: number; originalPriceUsd: number; priceUsd: number },
+  currency: Currency,
+): number {
+  const original = currency === "INR" ? product.originalPriceInr : product.originalPriceUsd;
+  const current = currency === "INR" ? product.priceInr : product.priceUsd;
+  if (!original || original <= current) return 0;
+  return Math.round(((original - current) / original) * 100);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAppState } from "@/components/providers/AppStateProvider";
 import { useSettings } from "@/components/providers/SettingsProvider";
 import { Button } from "@/components/ui/Button";
@@ -22,6 +22,38 @@ export default function AdminSettingsPage() {
     contactEmail: settings.admin.contactEmail,
     copyrightName: settings.website.copyrightName,
   });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch("/api/settings");
+        if (!res.ok) throw new Error("Failed to fetch settings");
+        const data = await res.json();
+        setSettings(data);
+        setFormState({
+          username: data.admin.username,
+          password: data.admin.password,
+          siteName: data.website.siteName,
+          tagline: data.website.tagline,
+          instagramHandle: data.website.instagramHandle,
+          instagramUrl: data.website.instagramUrl,
+          termsUrl: data.website.termsUrl,
+          contactEmail: data.admin.contactEmail,
+          copyrightName: data.website.copyrightName,
+        });
+      } catch (error) {
+        showToast("Error loading settings", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSettings();
+  }, [setSettings, showToast]);
+
+  if (loading) {
+    return <div style={{ padding: "2rem", textAlign: "center" }}>Loading settings...</div>;
+  }
 
   return (
     <div className="stack">
@@ -129,16 +161,21 @@ export default function AdminSettingsPage() {
                   },
                 };
 
-                const response = await fetch("/api/settings", {
-                  method: "PUT",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify(nextSettings),
-                });
-                const savedSettings = (await response.json()) as typeof nextSettings;
-                setSettings(savedSettings);
-                showToast("Admin and website settings saved.");
+                try {
+                  const response = await fetch("/api/settings", {
+                    method: "PUT",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(nextSettings),
+                  });
+                  if (!response.ok) throw new Error("Failed to save settings");
+                  const savedSettings = await response.json();
+                  setSettings(savedSettings);
+                  showToast("Admin and website settings saved successfully.");
+                } catch (error) {
+                  showToast("Error saving settings.", "error");
+                }
               }}
             >
               Save Settings

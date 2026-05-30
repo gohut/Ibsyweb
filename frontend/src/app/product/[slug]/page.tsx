@@ -8,8 +8,10 @@ import { ReviewList } from "@/components/product/ReviewList";
 import { ProductSecondarySection } from "@/components/product/ProductSecondarySection";
 import { StorefrontShell } from "@/components/layout/StorefrontShell";
 import { Badge } from "@/components/ui/Badge";
-import { getProductBySlug, getRelatedProducts } from "@/lib/mock-data";
 import { DownloadIcon, HeartIcon } from "@/components/ui/Icons";
+import { createSupabaseServerClient } from "@/lib/supabase";
+
+export const runtime = "nodejs";
 
 export default async function ProductPage({
   params,
@@ -17,26 +19,87 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const supabase = createSupabaseServerClient();
+  
+  const { data: dbProduct, error } = await supabase
+    .from("products")
+    .select("*")
+    .eq("slug", slug)
+    .single();
 
-  if (!product) {
+  if (error || !dbProduct) {
     notFound();
   }
 
+  // Fetch reviews
+  const { data: reviews } = await supabase
+    .from("reviews")
+    .select("*")
+    .eq("product_id", dbProduct.id)
+    .order("created_at", { ascending: false });
+
+  // Fetch related products
+  const { data: dbRelatedProducts } = await supabase
+    .from("products")
+    .select("*")
+    .eq("status", "active")
+    .neq("id", dbProduct.id)
+    .limit(4);
+
+  // Map to the shape expected by components
+  const product: any = {
+    id: dbProduct.id,
+    name: dbProduct.name,
+    slug: dbProduct.slug,
+    category: dbProduct.category,
+    shortBlurb: dbProduct.short_blurb,
+    descriptionHtml: dbProduct.description_html,
+    images: dbProduct.images || [],
+    youtubeUrls: dbProduct.youtube_urls || [],
+    originalPriceInr: dbProduct.original_price_inr,
+    priceInr: dbProduct.price_inr,
+    originalPriceUsd: dbProduct.original_price_usd,
+    priceUsd: dbProduct.price_usd,
+    likes: dbProduct.likes,
+    downloads: dbProduct.downloads,
+    avgRating: dbProduct.avg_rating,
+    reviewCount: dbProduct.review_count,
+    status: dbProduct.status,
+    reviews: reviews || []
+  };
+
+  const relatedProducts = (dbRelatedProducts || []).map(p => ({
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    category: p.category,
+    shortBlurb: p.short_blurb,
+    descriptionHtml: p.description_html,
+    images: p.images || [],
+    youtubeUrls: p.youtube_urls || [],
+    originalPriceInr: p.original_price_inr,
+    priceInr: p.price_inr,
+    originalPriceUsd: p.original_price_usd,
+    priceUsd: p.price_usd,
+    likes: p.likes,
+    downloads: p.downloads,
+    avgRating: p.avg_rating,
+    reviewCount: p.review_count,
+    status: p.status,
+  }));
+
   const mediaItems = [
-    ...product.images.map((image, index) => ({
+    ...product.images.map((image: string, index: number) => ({
       kind: "image" as const,
       src: image,
       label: `${product.name} image ${index + 1}`,
     })),
-    ...product.youtubeUrls.map((url, index) => ({
+    ...product.youtubeUrls.map((url: string, index: number) => ({
       kind: "video" as const,
       src: url,
       label: `${product.name} video ${index + 1}`,
     })),
   ];
-
-  const relatedProducts = getRelatedProducts(product.id);
 
   return (
     <StorefrontShell navbarVariant="product">
@@ -54,8 +117,6 @@ export default async function ProductPage({
                 {product.shortBlurb}
               </p>
             </div>
-
-
 
             <div style={{ display: "flex", gap: "6.95rem", flexWrap: "wrap" }}>
             <div className="rating-row">

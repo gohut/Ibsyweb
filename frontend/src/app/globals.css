@@ -557,22 +557,29 @@ main {
   position: relative;
   overflow: hidden;
   min-height: 220px;
+  height: 220px;
+  isolation: isolate;
 }
 
 .hero-track {
   display: flex;
+  height: 100%;
   transition: transform 0.55s ease;
 }
 
 .hero-slide {
+  flex: 0 0 100%;
   min-width: 100%;
   position: relative;
+  height: inherit;
+  min-height: inherit;
 }
 
 .hero-slide-link {
   display: block;
   width: 100%;
   height: 100%;
+  min-height: inherit;
   position: relative;
 }
 
@@ -1265,6 +1272,7 @@ main {
 
   .hero-slider {
     min-height: 260px;
+    height: 260px;
   }
 
   .admin-stats {
@@ -1279,6 +1287,7 @@ main {
 
   .hero-slider {
     min-height: 320px;
+    height: 320px;
   }
 
   .two-column,
@@ -1336,6 +1345,7 @@ main {
 
   .hero-slider {
     min-height: 380px;
+    height: 380px;
   }
 
   .tab-bar {

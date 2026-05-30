@@ -72,10 +72,11 @@ export function mergeSettings(settings?: Partial<AppSettings>): AppSettings {
       ...fallbackSettings.admin,
       ...settings?.admin,
     },
+    // Use real slides if the array was explicitly provided (even if empty).
+    // Only fall back to hardcoded slides when no slider key was given at all.
     slider:
-      settings?.slider && settings.slider.length
+      settings?.slider !== undefined
         ? settings.slider.map((slide, index) => ({
-            ...fallbackSettings.slider[0],
             ...slide,
             id: slide.id || `slide-${index + 1}`,
           }))

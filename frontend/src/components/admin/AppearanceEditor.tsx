@@ -1,11 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAppState } from "@/components/providers/AppStateProvider";
 import { useSettings } from "@/components/providers/SettingsProvider";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
 import { appearanceFonts } from "@/lib/mock-data";
 
 type ThemeColorKey = "accentColor" | "backgroundColor" | "textColor";
@@ -18,12 +19,7 @@ type ThemeColorFieldProps = {
 
 function normalizeHex(value: string) {
   const nextValue = value.trim().toUpperCase();
-
-  if (!nextValue.startsWith("#")) {
-    return `#${nextValue}`;
-  }
-
-  return nextValue;
+  return nextValue.startsWith("#") ? nextValue : `#${nextValue}`;
 }
 
 function ThemeColorField({ label, value, onChange }: ThemeColorFieldProps) {
@@ -56,7 +52,7 @@ function ThemeColorField({ label, value, onChange }: ThemeColorFieldProps) {
             aria-label={`${label} picker`}
             type="color"
             value={value}
-            onChange={(event) => onChange(event.target.value.toUpperCase())}
+            onChange={(e) => onChange(e.target.value.toUpperCase())}
             style={{
               position: "absolute",
               inset: 0,
@@ -71,12 +67,13 @@ function ThemeColorField({ label, value, onChange }: ThemeColorFieldProps) {
           <input
             className="royal-input"
             value={value}
-            onChange={(event) => onChange(normalizeHex(event.target.value))}
+            onChange={(e) => onChange(normalizeHex(e.target.value))}
             placeholder="#C9A84C"
             spellCheck={false}
           />
           <span className="muted">
-            Current value: <strong style={{ color: "var(--color-text-primary)" }}>{value}</strong>
+            Current:{" "}
+            <strong style={{ color: "var(--color-text-primary)" }}>{value}</strong>
           </span>
         </div>
       </div>
@@ -87,28 +84,90 @@ function ThemeColorField({ label, value, onChange }: ThemeColorFieldProps) {
 export function AppearanceEditor() {
   const { showToast } = useAppState();
   const { settings, setSettings } = useSettings();
-  const [logoPreview, setLogoPreview] = useState(settings.website.logoUrl);
+
+  const [logoUrl, setLogoUrl] = useState(settings.website.logoUrl ?? "");
   const [theme, setTheme] = useState({
     accentColor: settings.website.accentColor.toUpperCase(),
     backgroundColor: settings.website.backgroundColor.toUpperCase(),
     textColor: settings.website.textColor.toUpperCase(),
     fontPair: settings.website.fontPair,
   });
+  const [loading, setLoading] = useState(true);
 
-  const setThemeColor =
-    (key: ThemeColorKey) =>
-    (value: string) => {
-      setTheme((current) => ({
-        ...current,
-        [key]: value,
-      }));
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch("/api/settings");
+        if (!res.ok) throw new Error("Failed to fetch settings");
+        const data = await res.json();
+        setSettings(data);
+        setLogoUrl(data.website.logoUrl ?? "");
+        setTheme({
+          accentColor: data.website.accentColor.toUpperCase(),
+          backgroundColor: data.website.backgroundColor.toUpperCase(),
+          textColor: data.website.textColor.toUpperCase(),
+          fontPair: data.website.fontPair,
+        });
+      } catch {
+        showToast("Error loading appearance settings", "error");
+      } finally {
+        setLoading(false);
+      }
     };
+    fetchSettings();
+  }, [setSettings, showToast]);
+
+  const setThemeColor = (key: ThemeColorKey) => (value: string) => {
+    setTheme((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = async () => {
+    const nextSettings = {
+      ...settings,
+      website: {
+        ...settings.website,
+        logoUrl,
+        accentColor: theme.accentColor,
+        backgroundColor: theme.backgroundColor,
+        textColor: theme.textColor,
+        fontPair: theme.fontPair,
+      },
+    };
+
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextSettings),
+      });
+
+      if (!res.ok) throw new Error("Failed to save");
+
+      const saved = await res.json();
+      setSettings(saved);
+      showToast("Appearance settings saved successfully.");
+    } catch {
+      showToast("Error saving appearance settings.", "error");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        Loading appearance settings...
+      </div>
+    );
+  }
 
   return (
     <div className="stack">
       <div className="two-column">
+
+        {/* ── Left: Controls ── */}
         <Card style={{ padding: "1rem" }}>
           <div className="form-grid">
+
+            {/* Colors */}
             <ThemeColorField
               label="Primary Accent Color"
               value={theme.accentColor}
@@ -124,16 +183,15 @@ export function AppearanceEditor() {
               value={theme.textColor}
               onChange={setThemeColor("textColor")}
             />
+
+            {/* Font */}
             <label className="field">
               <span>Font Pair</span>
               <select
                 className="royal-input"
                 value={theme.fontPair}
-                onChange={(event) =>
-                  setTheme((current) => ({
-                    ...current,
-                    fontPair: event.target.value,
-                  }))
+                onChange={(e) =>
+                  setTheme((prev) => ({ ...prev, fontPair: e.target.value }))
                 }
               >
                 {appearanceFonts.map((font) => (
@@ -143,79 +201,75 @@ export function AppearanceEditor() {
                 ))}
               </select>
             </label>
-            <Card style={{ padding: "1rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                <span
-                  className="logo-mark"
-                  style={{ borderColor: theme.accentColor }}
-                >
-                  <Image
-                    src={logoPreview}
-                    alt={settings.website.siteName}
-                    width={56}
-                    height={56}
-                    unoptimized
-                  />
-                </span>
-                <div>
-                  <strong>Logo Upload</strong>
-                  <p className="muted">Upload a logo and save it into settings.json.</p>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ marginTop: "0.6rem" }}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (!file) {
-                        return;
-                      }
 
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        const result = reader.result;
-                        if (typeof result === "string") {
-                          setLogoPreview(result);
-                        }
-                      };
-                      reader.readAsDataURL(file);
-                    }}
-                  />
+            {/* ── Logo URL (replaces file upload) ── */}
+            <Card style={{ padding: "1rem" }}>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.75rem" }}
+              >
+                {/* Live logo preview */}
+                <div
+                  className="logo-mark"
+                  style={{
+                    borderColor: theme.accentColor,
+                    flexShrink: 0,
+                    width: 56,
+                    height: 56,
+                    borderRadius: "50%",
+                    overflow: "hidden",
+                    border: `2px solid ${theme.accentColor}`,
+                    background: "var(--color-bg-tertiary)",
+                    position: "relative",
+                  }}
+                >
+                  {logoUrl ? (
+                    <Image
+                      src={logoUrl}
+                      alt="Logo preview"
+                      fill
+                      style={{ objectFit: "cover" }}
+                      unoptimized
+                      onError={() => {}} // silently fail on bad URL
+                    />
+                  ) : (
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        height: "100%",
+                        color: theme.accentColor,
+                        fontSize: "1.4rem",
+                      }}
+                    >
+                      ✦
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <strong>Site Logo</strong>
+                  <p className="muted" style={{ fontSize: "0.82rem" }}>
+                    Upload your logo to Cloudflare R2, then paste the public URL below.
+                  </p>
                 </div>
               </div>
-            </Card>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <Button
-                onClick={async () => {
-                  const nextSettings = {
-                    ...settings,
-                    website: {
-                      ...settings.website,
-                      logoUrl: logoPreview,
-                      accentColor: theme.accentColor,
-                      backgroundColor: theme.backgroundColor,
-                      textColor: theme.textColor,
-                      fontPair: theme.fontPair,
-                    },
-                  };
 
-                  const response = await fetch("/api/settings", {
-                    method: "PUT",
-                    headers: {
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(nextSettings),
-                  });
-                  const savedSettings = (await response.json()) as typeof nextSettings;
-                  setSettings(savedSettings);
-                  showToast("Appearance settings saved.");
-                }}
-              >
-                Save Appearance
-              </Button>
+              <Input
+                label="Logo URL"
+                value={logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value)}
+                placeholder="https://your-r2-bucket.r2.dev/logo.png"
+                hint="Must be a publicly accessible image URL."
+              />
+            </Card>
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <Button onClick={handleSave}>Save Appearance</Button>
             </div>
           </div>
         </Card>
 
+        {/* ── Right: Live Preview ── */}
         <Card style={{ padding: "1rem" }}>
           <p className="eyebrow" style={{ color: theme.accentColor }}>
             Live preview
@@ -237,7 +291,9 @@ export function AppearanceEditor() {
             <h3 className="display-heading" style={{ fontSize: "1.8rem" }}>
               {settings.website.siteName}
             </h3>
-            <p style={{ color: `${theme.textColor}B3` }}>{settings.website.tagline}</p>
+            <p style={{ color: `${theme.textColor}B3` }}>
+              {settings.website.tagline}
+            </p>
             <div
               className="surface-card"
               style={{
@@ -249,7 +305,7 @@ export function AppearanceEditor() {
               }}
             >
               <p style={{ color: theme.accentColor }}>Accent glow</p>
-              <p>Refined premium interface direction with dark navy depth.</p>
+              <p>Refined premium interface with dark navy depth.</p>
             </div>
             <div
               className="stack"
@@ -272,10 +328,7 @@ export function AppearanceEditor() {
                   <span
                     key={item.label}
                     className="pill"
-                    style={{
-                      borderColor: theme.accentColor,
-                      color: theme.textColor,
-                    }}
+                    style={{ borderColor: theme.accentColor, color: theme.textColor }}
                   >
                     <span
                       style={{
@@ -284,6 +337,7 @@ export function AppearanceEditor() {
                         borderRadius: "50%",
                         background: item.value,
                         border: `1px solid ${theme.accentColor}55`,
+                        display: "inline-block",
                       }}
                     />
                     {item.label}: {item.value}
@@ -293,6 +347,7 @@ export function AppearanceEditor() {
             </div>
           </div>
         </Card>
+
       </div>
     </div>
   );

@@ -21,10 +21,10 @@ export function ProductPricePanel({ product }: { product: Product }) {
         </span>
         {discount ? <span className="product-discount-chip">{discount}% OFF</span> : null}
       </div>
-      <p className="muted">
+      {/* <p className="muted">
         INR {formatCurrencyValue(product.priceInr, "INR")} | USD{" "}
         {formatCurrencyValue(product.priceUsd, "USD")}
-      </p>
+      </p> */}
     </div>
   );
 }

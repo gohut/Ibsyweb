@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAppState } from "@/components/providers/AppStateProvider";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { ImageUploader } from "@/components/admin/ImageUploader";
@@ -15,10 +16,18 @@ type ProductFormProps = {
 };
 
 export function ProductForm({ product, title }: ProductFormProps) {
+  const router = useRouter();
   const { showToast } = useAppState();
+
+  const [name, setName] = useState(product?.name ?? "");
+  const [slug, setSlug] = useState(product?.slug ?? "");
+  const [category, setCategory] = useState(product?.category ?? "");
+  const [shortBlurb, setShortBlurb] = useState(product?.shortBlurb ?? "");
+
   const [status, setStatus] = useState<"active" | "hidden">(
     product?.status ?? "active",
   );
+
   const [originalPriceInr, setOriginalPriceInr] = useState(
     String(product?.originalPriceInr ?? ""),
   );
@@ -31,25 +40,111 @@ export function ProductForm({ product, title }: ProductFormProps) {
   const [currentPriceUsd, setCurrentPriceUsd] = useState(
     String(product?.priceUsd ?? ""),
   );
-  const [descriptionHtml, setDescriptionHtml] = useState(
-    product?.descriptionHtml ?? "<p>Start writing your premium product story here.</p>",
+
+  const [likes, setLikes] = useState(String(product?.likes ?? ""));
+  const [downloads, setDownloads] = useState(String(product?.downloads ?? ""));
+  const [avgRating, setAvgRating] = useState(String(product?.avgRating ?? ""));
+  const [reviewCount, setReviewCount] = useState(String(product?.reviewCount ?? ""));
+  const [youtubeUrls, setYoutubeUrls] = useState(
+    product?.youtubeUrls?.join(", ") ?? "",
   );
-  const [productImages, setProductImages] = useState(product?.images ?? []);
-  const [zipFileName, setZipFileName] = useState("");
+
+  const [descriptionHtml, setDescriptionHtml] = useState(
+    product?.descriptionHtml ??
+      "<p>Start writing your premium product story here.</p>",
+  );
+  const [productImages, setProductImages] = useState<string[]>(
+    product?.images ?? [],
+  );
+
+  // ── ZIP: just a URL/key pasted from Cloudflare R2 ───────────────────
+  const [zipFileKey, setZipFileKey] = useState(
+    product?.zip_file_path ?? "",
+  );
+
+  const [submitting, setSubmitting] = useState(false);
+
   const inrDiscount =
-    Number(originalPriceInr) > Number(currentPriceInr) && Number(originalPriceInr) > 0
+    Number(originalPriceInr) > Number(currentPriceInr) &&
+    Number(originalPriceInr) > 0
       ? Math.round(
-          ((Number(originalPriceInr) - Number(currentPriceInr)) / Number(originalPriceInr)) *
+          ((Number(originalPriceInr) - Number(currentPriceInr)) /
+            Number(originalPriceInr)) *
             100,
         )
       : 0;
+
   const usdDiscount =
-    Number(originalPriceUsd) > Number(currentPriceUsd) && Number(originalPriceUsd) > 0
+    Number(originalPriceUsd) > Number(currentPriceUsd) &&
+    Number(originalPriceUsd) > 0
       ? Math.round(
-          ((Number(originalPriceUsd) - Number(currentPriceUsd)) / Number(originalPriceUsd)) *
+          ((Number(originalPriceUsd) - Number(currentPriceUsd)) /
+            Number(originalPriceUsd)) *
             100,
         )
       : 0;
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      showToast("Product name is required.", "error");
+      return;
+    }
+    if (!slug.trim()) {
+      showToast("Slug is required.", "error");
+      return;
+    }
+
+    setSubmitting(true);
+
+    const payload = {
+      name,
+      slug,
+      category,
+      short_blurb: shortBlurb,
+      description_html: descriptionHtml,
+      images: productImages,
+      youtube_urls: youtubeUrls
+        .split(",")
+        .map((url) => url.trim())
+        .filter(Boolean),
+      original_price_inr: Number(originalPriceInr) || 0,
+      price_inr: Number(currentPriceInr) || 0,
+      original_price_usd: Number(originalPriceUsd) || 0,
+      price_usd: Number(currentPriceUsd) || 0,
+      status,
+      likes: Number(likes) || 0,
+      downloads: Number(downloads) || 0,
+      avg_rating: Number(avgRating) || 0,
+      review_count: Number(reviewCount) || 0,
+      zip_file_path: zipFileKey.trim() || null,
+    };
+
+    try {
+      const isEdit = Boolean(product?.id);
+      const url = isEdit ? `/api/products/${product?.id}` : "/api/products";
+      const method = isEdit ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? "Failed to save product");
+      }
+
+      showToast("Product saved successfully.");
+      router.push("/admin/products");
+      router.refresh();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error saving product.";
+      showToast(message, "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="stack">
@@ -62,20 +157,49 @@ export function ProductForm({ product, title }: ProductFormProps) {
 
       <Card style={{ padding: "1rem" }}>
         <div className="form-grid">
+
+          {/* ── Name + Slug ── */}
           <div className="two-column">
-            <Input label="Product Name" defaultValue={product?.name} placeholder="Product name" />
-            <Input label="Slug" defaultValue={product?.slug} placeholder="product-slug" />
+            <Input
+              label="Product Name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                // Auto-generate slug if not editing
+                if (!product?.id) {
+                  setSlug(
+                    e.target.value
+                      .toLowerCase()
+                      .replace(/[^a-z0-9]+/g, "-")
+                      .replace(/(^-|-$)/g, ""),
+                  );
+                }
+              }}
+              placeholder="Product name"
+            />
+            <Input
+              label="Slug"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              placeholder="product-slug"
+              hint="Used in the product URL. Auto-generated from name."
+            />
           </div>
 
+          {/* ── Category + Status ── */}
           <div className="two-column">
             <Input
               label="Category"
-              defaultValue={product?.category}
-              placeholder="Category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g. Templates, UI Kits, Scripts"
             />
             <label className="field">
               <span>Status</span>
-              <div className="surface-card" style={{ padding: "0.35rem", display: "flex", gap: "0.5rem" }}>
+              <div
+                className="surface-card"
+                style={{ padding: "0.35rem", display: "flex", gap: "0.5rem" }}
+              >
                 {(["active", "hidden"] as const).map((item) => (
                   <Button
                     key={item}
@@ -89,54 +213,68 @@ export function ProductForm({ product, title }: ProductFormProps) {
             </label>
           </div>
 
+          {/* ── Short Blurb ── */}
+          <Input
+            label="Short Blurb"
+            value={shortBlurb}
+            onChange={(e) => setShortBlurb(e.target.value)}
+            placeholder="A one-line description shown on product cards"
+          />
+
+          {/* ── Pricing ── */}
           <div className="two-column">
             <div className="stack" style={{ gap: "0.75rem" }}>
               <Input
-                label="Actual Price (INR)"
+                label="Original Price (INR)"
                 type="number"
                 value={originalPriceInr}
-                onChange={(event) => setOriginalPriceInr(event.target.value)}
+                onChange={(e) => setOriginalPriceInr(e.target.value)}
                 placeholder="3999"
+                hint="Shown as struck-through original price"
               />
               <Input
-                label="Current Price (INR)"
+                label="Selling Price (INR)"
                 type="number"
                 value={currentPriceInr}
-                onChange={(event) => setCurrentPriceInr(event.target.value)}
+                onChange={(e) => setCurrentPriceInr(e.target.value)}
                 placeholder="3499"
               />
-              <span className="pill">Discount: {inrDiscount}%</span>
+              <span className="pill">INR Discount: {inrDiscount}%</span>
             </div>
             <div className="stack" style={{ gap: "0.75rem" }}>
               <Input
-                label="Actual Price (USD)"
+                label="Original Price (USD)"
                 type="number"
                 value={originalPriceUsd}
-                onChange={(event) => setOriginalPriceUsd(event.target.value)}
+                onChange={(e) => setOriginalPriceUsd(e.target.value)}
                 placeholder="56"
+                hint="Shown as struck-through original price"
               />
               <Input
-                label="Current Price (USD)"
+                label="Selling Price (USD)"
                 type="number"
                 value={currentPriceUsd}
-                onChange={(event) => setCurrentPriceUsd(event.target.value)}
+                onChange={(e) => setCurrentPriceUsd(e.target.value)}
                 placeholder="49"
               />
-              <span className="pill">Discount: {usdDiscount}%</span>
+              <span className="pill">USD Discount: {usdDiscount}%</span>
             </div>
           </div>
 
+          {/* ── Stats ── */}
           <div className="two-column">
             <Input
               label="Likes"
               type="number"
-              defaultValue={product?.likes}
+              value={likes}
+              onChange={(e) => setLikes(e.target.value)}
               placeholder="0"
             />
             <Input
               label="Downloads"
               type="number"
-              defaultValue={product?.downloads}
+              value={downloads}
+              onChange={(e) => setDownloads(e.target.value)}
               placeholder="0"
             />
           </div>
@@ -146,30 +284,36 @@ export function ProductForm({ product, title }: ProductFormProps) {
               label="Average Rating"
               type="number"
               step="0.1"
-              defaultValue={product?.avgRating}
+              value={avgRating}
+              onChange={(e) => setAvgRating(e.target.value)}
               placeholder="4.8"
             />
             <Input
               label="Review Count"
               type="number"
-              defaultValue={product?.reviewCount}
+              value={reviewCount}
+              onChange={(e) => setReviewCount(e.target.value)}
               placeholder="128"
             />
           </div>
 
+          {/* ── YouTube URLs ── */}
           <Input
-            label="YouTube URLs"
-            defaultValue={product?.youtubeUrls.join(", ")}
-            placeholder="https://youtube.com/..."
-            hint="Add up to 3 URLs separated by commas."
+            label="YouTube Video URLs"
+            value={youtubeUrls}
+            onChange={(e) => setYoutubeUrls(e.target.value)}
+            placeholder="https://youtube.com/watch?v=abc, https://youtube.com/watch?v=xyz"
+            hint="Add up to 3 YouTube URLs separated by commas. Shown in the product media slider."
           />
 
+          {/* ── Product Images (Cloudflare R2 URLs) ── */}
           <ImageUploader
             title="Product Images"
             items={productImages}
             onChange={setProductImages}
           />
 
+          {/* ── Description (Rich Text) ── */}
           <div className="field">
             <span>Description</span>
             <RichTextEditor
@@ -178,43 +322,55 @@ export function ProductForm({ product, title }: ProductFormProps) {
             />
           </div>
 
+{/* ── ZIP File (Cloudflare R2) ── */}
           <Card style={{ padding: "1rem" }}>
             <div className="section-heading" style={{ marginBottom: "0.85rem" }}>
               <h3 className="gold-underline" style={{ fontSize: "1.2rem" }}>
-                ZIP File Upload
+                ZIP File
               </h3>
             </div>
-            <div className="upload-slot" style={{ padding: "1rem" }}>
-              <label className="stack" style={{ justifyItems: "center", gap: "0.45rem", width: "100%" }}>
-                <span className="muted">
-                  {zipFileName || "Choose a ZIP file for secure delivery"}
-                </span>
-                <input
-                  type="file"
-                  accept=".zip"
-                  onChange={(event) =>
-                    setZipFileName(event.target.files?.[0]?.name ?? "")
-                  }
-                />
-              </label>
-            </div>
+            <p className="muted" style={{ fontSize: "0.82rem", marginBottom: "0.75rem" }}>
+              Upload your ZIP to <strong>Cloudflare R2</strong>, then paste either:
+              <br />
+              • The <strong>full public URL</strong> — e.g.{" "}
+              <code>https://pub-xxx.r2.dev/my-product.zip</code>
+              <br />
+              • Or just the <strong>object key</strong> — e.g.{" "}
+              <code>my-product-v1.zip</code> (requires{" "}
+              <code>NEXT_PUBLIC_R2_BASE_URL</code> in .env.local)
+            </p>
+            <Input
+              label="R2 URL or Object Key"
+              value={zipFileKey}
+              onChange={(e) => setZipFileKey(e.target.value)}
+              placeholder="https://pub-xxx.r2.dev/my-product.zip"
+              hint="Paste the full R2 public URL for simplicity."
+            />
+            {zipFileKey && (
+              <p className="muted" style={{ fontSize: "0.78rem", marginTop: "0.4rem" }}>
+                ✓ Saved: <strong>{zipFileKey}</strong>
+              </p>
+            )}
           </Card>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", flexWrap: "wrap" }}>
+          {/* ── Actions ── */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+            }}
+          >
             <Button
               variant="ghost"
-              onClick={() => showToast("Draft saved in local preview mode.")}
+              disabled={submitting}
+              onClick={() => router.back()}
             >
-              Save Draft
+              Cancel
             </Button>
-            <Button
-              onClick={() =>
-                showToast(
-                  `Product ready with INR ${currentPriceInr || 0} (${inrDiscount}% off) and USD ${currentPriceUsd || 0} (${usdDiscount}% off).`,
-                )
-              }
-            >
-              Save Product
+            <Button disabled={submitting} onClick={handleSave}>
+              {submitting ? "Saving..." : "Save Product"}
             </Button>
           </div>
         </div>

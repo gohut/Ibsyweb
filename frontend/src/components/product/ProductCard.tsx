@@ -14,9 +14,22 @@ type ProductCardProps = {
   product: Product;
 };
 
+// Fallback image — a plain dark placeholder data URL (no external request)
+const FALLBACK_IMAGE =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='400' height='300' fill='%231a2235'/%3E%3C/svg%3E";
+
 export function ProductCard({ product }: ProductCardProps) {
   const { addToCart, currency } = useAppState();
+
+  if (!product) return null;
+
   const discount = getProductDiscountPercentage(product, currency);
+
+  // ── Safe image: use first image if it exists, else fallback ──────────
+  const imageSrc =
+    Array.isArray(product.images) && product.images[0]
+      ? product.images[0]
+      : FALLBACK_IMAGE;
 
   return (
     <article
@@ -44,13 +57,15 @@ export function ProductCard({ product }: ProductCardProps) {
         }}
       >
         <Image
-          src={product.images[0]}
+          src={imageSrc}
           alt={product.name}
           fill
           sizes="(max-width: 768px) 100vw, 33vw"
           style={{ objectFit: "cover" }}
-          placeholder="blur"
-          blurDataURL={product.images[0]}
+          // Only use blur placeholder when we have a real image URL
+          {...(imageSrc === FALLBACK_IMAGE
+            ? {}
+            : { placeholder: "blur", blurDataURL: imageSrc })}
           unoptimized
         />
 
@@ -64,13 +79,13 @@ export function ProductCard({ product }: ProductCardProps) {
           }}
         />
 
-        {/* Top-left: product name + category label */}
+        {/* Top-left: product name */}
         <div
           style={{
             position: "absolute",
             top: "0.75rem",
             left: "0.8rem",
-            right: "5.5rem", // leave room for the badge
+            right: "5.5rem",
             display: "flex",
             flexDirection: "column",
             gap: "0.18rem",
@@ -90,7 +105,6 @@ export function ProductCard({ product }: ProductCardProps) {
           >
             {product.name}
           </span>
-
         </div>
 
         {/* Top-right: floating badge — rating + downloads */}
@@ -103,10 +117,10 @@ export function ProductCard({ product }: ProductCardProps) {
           }}
         >
           <span style={{ color: "var(--color-star, #f5c518)" }}>★</span>
-          <span>{product.avgRating.toFixed(1)}</span>
+          <span>{(product.avgRating ?? 0).toFixed(1)}</span>
           <span className="product-card-rating-separator" />
           <DownloadIcon width="12" height="12" />
-          <span>{product.downloads}</span>
+          <span>{product.downloads ?? 0}</span>
         </div>
 
         {/* Bottom-left: discount chip */}
@@ -146,12 +160,8 @@ export function ProductCard({ product }: ProductCardProps) {
             href={`/product/${product.slug}`}
             style={{ textDecoration: "none", flex: 1, minWidth: 0 }}
           >
-            <h3 className="product-card-title">
-              {product.name}
-            </h3>
+            <h3 className="product-card-title">{product.name}</h3>
           </Link>
-                  {/* Category — below the name */}
-
 
           {/* Right: current price + struck-through original */}
           <div
@@ -171,10 +181,12 @@ export function ProductCard({ product }: ProductCardProps) {
               </span>
             ) : null}
           </div>
-          
         </div>
 
-        <span className="product-card-category" style={{position: "absolute", transform:"translate(-5px, 20px)"}}>
+        <span
+          className="product-card-category"
+          style={{ position: "absolute", transform: "translate(-5px, 20px)" }}
+        >
           {product.category}
         </span>
       </div>
