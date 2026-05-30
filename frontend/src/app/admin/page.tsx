@@ -38,9 +38,9 @@ export default async function AdminDashboardPage() {
     ) || {};
 
   const dashboardStats = [
-    { label: "Total Revenue", value: `₹${totalRevenue.toLocaleString()}`, trend: "positive", change: "+12.5%" },
-    { label: "Total Orders", value: String(totalOrders || 0), trend: "positive", change: "+5.2%" },
-    { label: "Active Products", value: String(totalProducts || 0), trend: "neutral", change: "0%" },
+    { label: "Total Revenue", value: `₹${totalRevenue.toLocaleString()}`, trend: "positive", change: "+12.5%", detail: "From completed orders" },
+    { label: "Total Orders", value: String(totalOrders || 0), trend: "positive", change: "+5.2%", detail: "All time orders" },
+    { label: "Active Products", value: String(totalProducts || 0), trend: "neutral", change: "0%", detail: "Published products" },
   ];
 
   return (
@@ -93,7 +93,7 @@ export default async function AdminDashboardPage() {
               {(!recentOrders || recentOrders.length === 0) && (
                 <tr>
                   <td colSpan={6} style={{ textAlign: "center", padding: "2rem" }}>
-                    No recent orders.
+                    No recent orders. please check later
                   </td>
                 </tr>
               )}
