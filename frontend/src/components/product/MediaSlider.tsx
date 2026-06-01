@@ -155,7 +155,7 @@ function Lightbox({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "0 60px",
+          padding: "0 8px",
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => { touchStartX.current = e.touches[0]?.clientX ?? null; }}
@@ -196,7 +196,7 @@ function Lightbox({
         )}
       </div>
 
-      {/* prev / next */}
+      {/* prev / next — hidden on mobile via CSS, swipe handles navigation */}
       {items.length > 1 && (
         <>
           <button
@@ -204,6 +204,7 @@ function Lightbox({
             aria-label="Previous"
             onClick={(e) => { e.stopPropagation(); prev(); }}
             style={navBtnStyle("left")}
+            className="lightbox-nav-btn"
           >
             ‹
           </button>
@@ -212,6 +213,7 @@ function Lightbox({
             aria-label="Next"
             onClick={(e) => { e.stopPropagation(); next(); }}
             style={navBtnStyle("right")}
+            className="lightbox-nav-btn"
           >
             ›
           </button>
