@@ -67,7 +67,16 @@ function Lightbox({
   onClose: () => void;
 }) {
   const [index, setIndex] = useState(startIndex);
+  const [isMobile, setIsMobile] = useState(false);
   const item = items[index];
+
+  // Detect mobile on mount
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   const touchStartX = useRef<number | null>(null);
 
@@ -203,7 +212,7 @@ function Lightbox({
             type="button"
             aria-label="Previous"
             onClick={(e) => { e.stopPropagation(); prev(); }}
-            style={navBtnStyle("left")}
+            style={{ ...navBtnStyle("left"), ...(isMobile ? { display: "none" } : {}) }}
             className="lightbox-nav-btn"
           >
             ‹
@@ -212,7 +221,7 @@ function Lightbox({
             type="button"
             aria-label="Next"
             onClick={(e) => { e.stopPropagation(); next(); }}
-            style={navBtnStyle("right")}
+            style={{ ...navBtnStyle("right"), ...(isMobile ? { display: "none" } : {}) }}
             className="lightbox-nav-btn"
           >
             ›
@@ -345,12 +354,7 @@ export function MediaSlider({ items }: MediaSliderProps) {
         {/* ── Main Stage ── */}
         <div
           className="media-stage"
-          style={{
-            cursor: "zoom-in",
-            marginLeft: "calc(-1 * var(--page-padding-x, 0px))",
-            marginRight: "calc(-1 * var(--page-padding-x, 0px))",
-            borderRadius: 0,
-          }}
+          style={{ cursor: "zoom-in" }}
           onClick={() => setLightboxIndex(activeIndex)}
           onTouchStart={(e) => { touchStartX.current = e.touches[0]?.clientX ?? null; }}
           onTouchEnd={(e) => {
@@ -367,7 +371,7 @@ export function MediaSlider({ items }: MediaSliderProps) {
               alt={activeItem.label}
               fill
               sizes="(max-width: 768px) 100vw, 55vw"
-              style={{ objectFit: "cover" }}
+              style={{ objectFit: "contain" }}
               unoptimized
             />
           ) : (
@@ -391,7 +395,7 @@ export function MediaSlider({ items }: MediaSliderProps) {
               gap: 6,
               overflowX: "auto",
               overflowY: "hidden",
-              padding: "8px var(--page-padding-x, 12px)",
+              padding: "8px 12px",
               scrollbarWidth: "none",
               WebkitOverflowScrolling: "touch",
             }}

@@ -69,9 +69,8 @@ export default async function ProductPage({
     .neq("id", dbProduct.id)
     .limit(4);
 
-  // Safely coerce array fields — Supabase may return null for jsonb columns
-  const images: string[] = Array.isArray(dbProduct.images) ? dbProduct.images as string[] : [];
-  const youtubeUrls: string[] = Array.isArray(dbProduct.youtube_urls) ? dbProduct.youtube_urls as string[] : [];
+  const images: string[] = (Array.isArray(dbProduct.images) ? dbProduct.images as string[] : []).filter(Boolean);
+  const youtubeUrls: string[] = (Array.isArray(dbProduct.youtube_urls) ? dbProduct.youtube_urls as string[] : []).filter(Boolean);
 
   // Map to the shape expected by components
   const product = {
@@ -101,25 +100,28 @@ export default async function ProductPage({
     })),
   };
 
-  const relatedProducts = (dbRelatedProducts || []).map((p) => ({
-    id: p.id,
-    name: p.name,
-    slug: p.slug,
-    category: p.category,
-    shortBlurb: p.short_blurb,
-    descriptionHtml: p.description_html,
-    images: Array.isArray(p.images) ? p.images as string[] : [],
-    youtubeUrls: Array.isArray(p.youtube_urls) ? p.youtube_urls as string[] : [],
-    originalPriceInr: p.original_price_inr,
-    priceInr: p.price_inr,
-    originalPriceUsd: p.original_price_usd,
-    priceUsd: p.price_usd,
-    likes: p.likes,
-    downloads: p.downloads,
-    avgRating: p.avg_rating,
-    reviewCount: p.review_count,
-    status: p.status,
-  }));
+  const relatedProducts = (dbRelatedProducts || []).map((p) => {
+    const pImages = Array.isArray(p.images) ? p.images as string[] : [];
+    return {
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      category: p.category,
+      shortBlurb: p.short_blurb,
+      descriptionHtml: p.description_html,
+      images: pImages.filter(Boolean),  // strip empty strings
+      youtubeUrls: Array.isArray(p.youtube_urls) ? p.youtube_urls as string[] : [],
+      originalPriceInr: p.original_price_inr,
+      priceInr: p.price_inr,
+      originalPriceUsd: p.original_price_usd,
+      priceUsd: p.price_usd,
+      likes: p.likes,
+      downloads: p.downloads,
+      avgRating: p.avg_rating,
+      reviewCount: p.review_count,
+      status: p.status,
+    };
+  });
 
   const mediaItems = [
     ...images.map((image, index) => ({
@@ -136,11 +138,11 @@ export default async function ProductPage({
 
   return (
     <StorefrontShell navbarVariant="product">
-      <div className="page-container">
+      <div className="page-container product-page-container">
         <div className="page-section product-page-layout">
           <MediaSlider items={mediaItems} />
 
-          <div className="stack">
+          <div className="stack product-info-stack">
             <div>
               <p className="eyebrow" style={{ fontSize: "10px" }}>{product.category}</p>
               <h1 className="display-heading" style={{ fontSize: "14px" }}>
@@ -170,14 +172,14 @@ export default async function ProductPage({
           </div>
         </div>
 
-        <section className="page-section section-divider">
+        <section className="page-section section-divider" style={{ paddingLeft: "1rem", paddingRight: "1rem" }}>
           <ProductSecondarySection
             descriptionHtml={product.descriptionHtml}
             relatedProducts={relatedProducts}
           />
         </section>
 
-        <section id="reviews" className="page-section section-divider">
+        <section id="reviews" className="page-section section-divider" style={{ paddingLeft: "1rem", paddingRight: "1rem" }}>
           <div className="section-heading">
             <div>
               <p className="eyebrow">Social proof</p>
