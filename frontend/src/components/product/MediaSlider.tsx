@@ -5,6 +5,40 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { PlayIcon } from "@/components/ui/Icons";
 
+// Converts any YouTube URL format to an embeddable src
+function toYouTubeEmbedUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    let videoId: string | null = null;
+
+    if (parsed.hostname === "youtu.be") {
+      // https://youtu.be/VIDEO_ID
+      videoId = parsed.pathname.slice(1);
+    } else if (
+      parsed.hostname === "www.youtube.com" ||
+      parsed.hostname === "youtube.com"
+    ) {
+      if (parsed.pathname === "/watch") {
+        // https://www.youtube.com/watch?v=VIDEO_ID
+        videoId = parsed.searchParams.get("v");
+      } else if (parsed.pathname.startsWith("/embed/")) {
+        // Already an embed URL — return as-is
+        return url;
+      } else if (parsed.pathname.startsWith("/shorts/")) {
+        // https://www.youtube.com/shorts/VIDEO_ID
+        videoId = parsed.pathname.replace("/shorts/", "");
+      }
+    }
+
+    if (videoId) {
+      return `https://www.youtube.com/embed/${videoId}`;
+    }
+  } catch {
+    // Not a valid URL — fall through
+  }
+  return url; // Return original if we can't parse it
+}
+
 function CloseIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -149,7 +183,7 @@ function Lightbox({
           />
         ) : (
           <iframe
-            src={item.src}
+            src={toYouTubeEmbedUrl(item.src)}
             title={item.label}
             allowFullScreen
             style={{
@@ -336,7 +370,7 @@ export function MediaSlider({ items }: MediaSliderProps) {
             />
           ) : (
             <iframe
-              src={activeItem.src}
+              src={toYouTubeEmbedUrl(activeItem.src)}
               title={activeItem.label}
               allowFullScreen
               onClick={(e) => e.stopPropagation()}
