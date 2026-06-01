@@ -8,7 +8,6 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { cartSeed } from "@/lib/mock-data";
 import { detectCurrencyClient, type Currency } from "@/lib/currency";
 
 type ToastItem = {
@@ -30,19 +29,17 @@ const AppStateContext = createContext<AppStateValue | null>(null);
 
 const CART_STORAGE_KEY = "royal-vault-cart";
 const CURRENCY_STORAGE_KEY = "royal-vault-currency";
-// Only written when the USER manually picks a currency
 const CURRENCY_MANUAL_KEY = "royal-vault-currency-manual";
 
 export function AppStateProvider({ children }: PropsWithChildren) {
   const [currency, setCurrencyState] = useState<Currency>("USD");
-  const [cartItems, setCartItems] = useState<string[]>(cartSeed);
+  const [cartItems, setCartItems] = useState<string[]>([]); // ← start empty, load from localStorage in effect
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   useEffect(() => {
     const wasManuallySet = window.localStorage.getItem(CURRENCY_MANUAL_KEY) === "1";
 
     if (!wasManuallySet) {
-      // No manual choice — always auto-detect from timezone, ignore any saved value
       window.localStorage.removeItem(CURRENCY_STORAGE_KEY);
       setCurrencyState(detectCurrencyClient());
     } else {
@@ -56,7 +53,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
         const parsed = JSON.parse(savedCart) as string[];
         setCartItems(parsed);
       } catch {
-        setCartItems(cartSeed);
+        setCartItems([]);
       }
     }
   }, []);
@@ -80,7 +77,6 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     () => ({
       currency,
       setCurrency: (next: Currency) => {
-        // Mark as manually chosen — auto-detect skipped on future visits
         setCurrencyState(next);
         window.localStorage.setItem(CURRENCY_STORAGE_KEY, next);
         window.localStorage.setItem(CURRENCY_MANUAL_KEY, "1");

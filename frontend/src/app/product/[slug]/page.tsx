@@ -3,11 +3,9 @@ import { notFound } from "next/navigation";
 import { MediaSlider } from "@/components/product/MediaSlider";
 import { ProductDetailActions } from "@/components/product/ProductDetailActions";
 import { ProductPricePanel } from "@/components/product/ProductPricePanel";
-import { RatingStars } from "@/components/product/RatingStars";
 import { ReviewList } from "@/components/product/ReviewList";
 import { ProductSecondarySection } from "@/components/product/ProductSecondarySection";
 import { StorefrontShell } from "@/components/layout/StorefrontShell";
-import { DownloadIcon } from "@/components/ui/Icons";
 import { createSupabaseServerClient } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
 
@@ -54,14 +52,12 @@ export default async function ProductPage({
     notFound();
   }
 
-  // Fetch reviews
   const { data: reviews } = await supabase
     .from("reviews")
     .select("*")
     .eq("product_id", dbProduct.id)
     .order("created_at", { ascending: false });
 
-  // Fetch related products
   const { data: dbRelatedProducts } = await supabase
     .from("products")
     .select("*")
@@ -72,7 +68,6 @@ export default async function ProductPage({
   const images: string[] = (Array.isArray(dbProduct.images) ? dbProduct.images as string[] : []).filter(Boolean);
   const youtubeUrls: string[] = (Array.isArray(dbProduct.youtube_urls) ? dbProduct.youtube_urls as string[] : []).filter(Boolean);
 
-  // Map to the shape expected by components
   const product = {
     id: dbProduct.id,
     name: dbProduct.name,
@@ -109,7 +104,7 @@ export default async function ProductPage({
       category: p.category,
       shortBlurb: p.short_blurb,
       descriptionHtml: p.description_html,
-      images: pImages.filter(Boolean),  // strip empty strings
+      images: pImages.filter(Boolean),
       youtubeUrls: Array.isArray(p.youtube_urls) ? p.youtube_urls as string[] : [],
       originalPriceInr: p.original_price_inr,
       priceInr: p.price_inr,
@@ -153,21 +148,9 @@ export default async function ProductPage({
               </p>
             </div>
 
-            <div style={{ display: "flex", gap: "6.95rem", flexWrap: "wrap" }}>
-              <div className="rating-row">
-                <RatingStars rating={product.avgRating} />
-                <Link href="#reviews" className="subtle-link">
-                  {product.avgRating}({product.reviewCount})
-                </Link>
-              </div>
-              <div style={{ display: "flex", gap: "5px", justifyContent: "center", alignItems: "center" }}>
-                <DownloadIcon width="14" height="14" />
-                {product.downloads} Downloads
-              </div>
-            </div>
-
             <ProductPricePanel product={product} />
 
+            {/* Downloads + rating row now rendered inside ProductDetailActions, below the buttons */}
             <ProductDetailActions product={product} />
           </div>
         </div>
