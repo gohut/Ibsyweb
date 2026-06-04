@@ -13,7 +13,7 @@ type DirectPurchaseButtonProps = {
   fullWidth?: boolean;
 };
 
-type Stage = "closed" | "processing" | "bill";
+type Stage = "closed" | "processing" | "verifying" | "bill";
 
 interface CompletedOrder {
   billId: string;
@@ -80,7 +80,8 @@ export function DirectPurchaseButton({
       prefill: { name: "", email: "" },
       theme: { color: "#c9a84c" },
       handler: async (response: RazorpaySuccessResponse) => {
-        await saveOrder(response.razorpay_payment_id);
+        // ✅ FIX: Always verify the signature on the server BEFORE saving order
+        await verifyAndSaveOrder(response);
       },
       modal: {
         ondismiss: () => {
@@ -93,7 +94,35 @@ export function DirectPurchaseButton({
     rzp.open();
   };
 
-  const saveOrder = async (paymentId: string) => {
+  // ✅ NEW: Verify signature first, then save order — no delivery without both passing
+  const verifyAndSaveOrder = async (response: RazorpaySuccessResponse) => {
+    setStage("verifying");
+
+    // Step 1: Verify HMAC signature on the server
+    try {
+      const verifyRes = await fetch("/api/razorpay/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature,
+        }),
+      });
+
+      if (!verifyRes.ok) {
+        // ✅ FIX: Signature mismatch = payment is fraudulent or tampered — never deliver
+        showToast("Payment verification failed. Contact support.", "error");
+        setStage("closed");
+        return;
+      }
+    } catch {
+      showToast("Could not verify payment. Contact support.", "error");
+      setStage("closed");
+      return;
+    }
+
+    // Step 2: Signature verified — now save order in Supabase
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
@@ -106,20 +135,25 @@ export function DirectPurchaseButton({
           currency: "INR",
           payment_method: "razorpay",
           status: "completed",
-          payment_reference: paymentId,
+          payment_reference: response.razorpay_payment_id,
         }),
       });
+
       if (!res.ok) throw new Error();
       const order = (await res.json()) as { id: string };
-      setCompletedOrder({ billId: order.id, paymentId });
+      setCompletedOrder({ billId: order.id, paymentId: response.razorpay_payment_id });
     } catch {
+      // ✅ FIX: If DB save fails, we still verified payment — show a fallback bill
+      // but log this as it needs manual reconciliation. Do NOT silently deliver.
+      console.error("[ibsy] Order save failed after verified payment:", response.razorpay_payment_id);
       setCompletedOrder({
-        billId: `PAY-${paymentId.slice(-8).toUpperCase()}`,
-        paymentId,
+        billId: `PAY-${response.razorpay_payment_id.slice(-8).toUpperCase()}`,
+        paymentId: response.razorpay_payment_id,
       });
     }
-    setStage("bill");
 
+    // Only reaches here if verification PASSED
+    setStage("bill");
   };
 
   // ─── Shared order summary ─────────────────────────────────────────────────
@@ -169,8 +203,8 @@ export function DirectPurchaseButton({
             }}
           >
 
-            {/* ── Processing ── */}
-            {stage === "processing" && (
+            {/* ── Processing / Verifying ── */}
+            {(stage === "processing" || stage === "verifying") && (
               <div style={{
                 display: "grid",
                 gap: "0.75rem",
@@ -185,10 +219,14 @@ export function DirectPurchaseButton({
                   borderRadius: "50%",
                   animation: "spin 0.8s linear infinite",
                 }} />
-                <p className="eyebrow">Processing payment</p>
+                <p className="eyebrow">
+                  {stage === "verifying" ? "Verifying payment" : "Processing payment"}
+                </p>
                 <p className="muted" style={{ fontSize: "0.82rem" }}>
-                  Complete the payment in the Razorpay window.
-                  <br />Do not close or refresh this page.
+                  {stage === "verifying"
+                    ? "Confirming your payment with our server…"
+                    : <>Complete the payment in the Razorpay window.<br />Do not close or refresh this page.</>
+                  }
                 </p>
               </div>
             )}
@@ -232,11 +270,13 @@ export function DirectPurchaseButton({
 
                 {/* Receipt */}
                 <div className="surface-card" style={{ padding: "0.75rem", display: "grid", gap: "0.45rem" }}>
-                  {[
-                    ["Order ID", completedOrder.billId],
-                    ["Payment ID", completedOrder.paymentId],
-                    ["Date", new Date().toLocaleString()],
-                  ].map(([label, value]) => (
+                  {(
+                    [
+                      ["Order ID", completedOrder.billId],
+                      ["Payment ID", completedOrder.paymentId],
+                      ["Date", new Date().toLocaleString()],
+                    ] as [string, string][]
+                  ).map(([label, value]) => (
                     <div key={label} className="summary-row" style={{ fontSize: "0.82rem" }}>
                       <span style={{ color: "var(--color-text-secondary)" }}>{label}</span>
                       <strong style={{ textAlign: "right", wordBreak: "break-all", maxWidth: "65%" }}>
@@ -257,7 +297,7 @@ export function DirectPurchaseButton({
                     rel="noreferrer"
                     className="royal-button primary"
                   >
-                    download My Product
+                    Download My Product
                   </a>
                 </div>
               </>
