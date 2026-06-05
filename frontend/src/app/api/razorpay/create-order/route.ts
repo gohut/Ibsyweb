@@ -3,63 +3,54 @@ import crypto from "crypto";
 
 export const runtime = "nodejs";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface VerifyBody {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
+interface CreateOrderBody {
+  amount: number;
+  productName: string;
 }
 
-// ─── POST /api/razorpay/verify ────────────────────────────────────────────────
-// Called by DirectPurchaseButton BEFORE saving the order or delivering the product.
-// Returns { ok: true } only if the HMAC signature matches — proving the payment
-// actually came from Razorpay and was not tampered with.
+interface RazorpayOrderResponse {
+  id: string;
+  amount: number;
+  currency: string;
+  receipt: string;
+}
+
 export async function POST(request: Request) {
+  const keyId     = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
-  if (!keySecret) {
-    console.error("[razorpay/verify] Missing RAZORPAY_KEY_SECRET env var");
+  if (!keyId || !keySecret) {
+    console.error("[razorpay] Missing RAZORPAY env vars");
     return NextResponse.json(
-      { ok: false, error: "Server misconfiguration" },
+      { error: "Payment gateway not configured" },
       { status: 500 },
     );
   }
 
-  let body: VerifyBody;
-  try {
-    body = (await request.json()) as VerifyBody;
-  } catch {
-    return NextResponse.json({ ok: false, error: "Invalid request body" }, { status: 400 });
-  }
+  const body = (await request.json()) as CreateOrderBody;
+  const amountPaise = Math.round(body.amount * 100);
+  const receipt = `rcpt_${crypto.randomBytes(6).toString("hex")}`;
 
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
+  const credentials = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
 
-  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+  const res = await fetch("https://api.razorpay.com/v1/orders", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Basic ${credentials}`,
+    },
+    body: JSON.stringify({ amount: amountPaise, currency: "INR", receipt }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    console.error("[razorpay] create-order failed:", err);
     return NextResponse.json(
-      { ok: false, error: "Missing required fields" },
-      { status: 400 },
+      { error: "Failed to create Razorpay order" },
+      { status: 500 },
     );
   }
 
-  // Razorpay's verification formula:
-  // HMAC-SHA256( razorpay_order_id + "|" + razorpay_payment_id, key_secret )
-  const payload = `${razorpay_order_id}|${razorpay_payment_id}`;
-  const expectedSignature = crypto
-    .createHmac("sha256", keySecret)
-    .update(payload)
-    .digest("hex");
-
-  if (expectedSignature !== razorpay_signature) {
-    console.warn("[razorpay/verify] Signature mismatch — possible fraud or tampered response", {
-      razorpay_order_id,
-      razorpay_payment_id,
-    });
-    return NextResponse.json(
-      { ok: false, error: "Signature verification failed" },
-      { status: 400 },
-    );
-  }
-
-  // Signature matched — payment is genuine
-  return NextResponse.json({ ok: true });
+  const order = (await res.json()) as RazorpayOrderResponse;
+  return NextResponse.json({ orderId: order.id, amount: order.amount });
 }
